@@ -4,7 +4,7 @@ import string
 
 bufsize = 1000
 minbuf = 50
-overlapfraction = 0.1
+overlap = 100
 totalitems = 100000
 
 class tuplesort:
@@ -28,8 +28,11 @@ class tuplesort:
             exit()
 
     def input(self, value):
+#        print "input: %f" % value
+#        print "bufsize=%d" % len(self.tuparray)
         if len(self.tuparray) >= bufsize:
             self.spillarray()
+#        print "bufsize=%d" % len(self.tuparray)
         self.tuparray.append(value)
         self.nitems = self.nitems + 1
         #self.checkinvariants()
@@ -44,20 +47,34 @@ class tuplesort:
 
     def spillarray(self, force = False):
         high = len(self.tuparray) - 1
+
         if self.lastspilled != None:
             self.low = self.pivot(self.lastspilled, self.low, high) + 1
-        m = int(high - overlapfraction * (high - self.low))
+
+#        if (self.low > 0):
+#            print "residue (self.lastspilled=%f):" % self.lastspilled
+#            print self.tuparray[0:self.low]
+#        print "spillable:"
+#        print self.tuparray[self.low:]
+
+        m = high - overlap
         if m - self.low < minbuf:
             m = self.low + minbuf
         if force or m > high:
             m = high
 #        print "spilling %d..%d" % (self.low, m)
         self.qsort(self.low, high, m)
+
+#        print "spilling:"
+#        print self.tuparray[self.low:m+1]
+
         self.current_run.extend(self.tuparray[self.low:m+1])
         self.tuparray[self.low:m+1] = []
         self.lastspilled = self.current_run[-1]
         if self.low > bufsize-minbuf:
             self.new_run()
+#        print "self.lastspilled = %f tuparray:" % self.lastspilled
+#        print self.tuparray
 
     def new_run(self):
 #        print "starting new run"
@@ -117,38 +134,48 @@ class tuplesort:
         elif (h > l):
             k = self.pivot(self.tuparray[h], l, h)
             self.qsort_worker(l, k-1, m)
-            if k+1 < m:
+            if k+1 <= m:
                 self.qsort_worker(k+1, h, m)
 
 
 if __name__ == "__main__":
+    actualoverlap = None
     if len(sys.argv) > 1:
-        bufsize = int(sys.argv[1]);
+        bufsize = int(sys.argv[1])
     if len(sys.argv) > 2:
-        totalitems = int(sys.argv[2]);
+        totalitems = int(sys.argv[2])
     if len(sys.argv) > 3:
-        minbuf = int(sys.argv[3]);
+        minbuf = int(sys.argv[3])
     if len(sys.argv) > 4:
-        overlapfraction = float(sys.argv[4]);
+        overlap = int(sys.argv[4])
+    if len(sys.argv) > 5:
+        actualoverlap = int(sys.argv[5])
 
-    if (bufsize <= 20):
-        print "bufsize=%d" % bufsize;
-        exit(1);
+    if (bufsize <= 8):
+        print "bufsize=%d" % bufsize
+        exit(1)
     if (totalitems <= 20):
-        print "totalitems=%d" % totalitems;
-        exit(1);
+        print "totalitems=%d" % totalitems
+        exit(1)
     if (minbuf <= 0 or minbuf > bufsize):
-        print "minbuf=%d" % minbuf;
-        exit(1);
-    if (overlapfraction < 0 or overlapfraction >= 1.0):
-        print "overlapfraction=%f" % overlapfraction;
-        exit(1);
+        print "minbuf=%d" % minbuf
+        exit(1)
+    if (overlap < 0 or overlap >= bufsize):
+        print "overlap=%d" % overlap
+        exit(1)
+    if (actualoverlap != None and actualoverlap < 0):
+        print "actualoverlap=%d" % actualoverlap
+        exit(1)
 
-    #print "Processing %d tuples, in a %d buffer, reading minimum %d at a time overlapping by %f" % (totalitems, bufsize, minbuf, overlapfraction);
+#    print "Processing %d tuples, in a %d buffer, reading minimum %d at a time overlapping by %d" % (totalitems, bufsize, minbuf, overlap)
 
     ts = tuplesort()
-    for i in range(0, totalitems):
-        ts.input(random.random())
+    if (actualoverlap == None):
+        for i in range(0, totalitems):
+            ts.input(random.random())
+    else:
+        for i in range(0, totalitems):
+            ts.input(i + actualoverlap * random.random())
     ts.finish()
     n = 0
     for run in ts.runs:
@@ -163,4 +190,7 @@ if __name__ == "__main__":
     if n != totalitems:
         print "Only have %d items after generating runs!" % n
     #print "Generated %d runs using %d swaps" % (len(ts.runs), ts.nswaps)
-    print "%d,%d,%d,%f,%d,%d" % (totalitems,bufsize,minbuf,overlapfraction,len(ts.runs), ts.nswaps)
+    if (actualoverlap == None):
+        print "%d,%d,%d,%d,None,%d,%d" % (totalitems,bufsize,minbuf,overlap,len(ts.runs), ts.nswaps)
+    else:
+        print "%d,%d,%d,%d,%d,%d,%d" % (totalitems,bufsize,minbuf,overlap,actualoverlap,len(ts.runs), ts.nswaps)
